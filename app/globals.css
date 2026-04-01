@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-pure-black text-pure-white antialiased font-sans flex flex-col min-h-screen selection:bg-electric-blue selection:text-white uppercase tracking-widest;
+  }
+}
+
+@layer components {
+  /* Minimalist 1px solid components */
+  .border-box-minimal {
+    @apply border border-pure-white rounded-none;
+  }
+  
+  .input-minimal {
+    @apply bg-transparent outline-none focus:border-electric-blue transition-colors duration-300 w-full placeholder:text-gray-600;
+  }
+  
+  .btn-minimal {
+    @apply bg-pure-white text-pure-black hover:bg-electric-blue hover:text-pure-white transition-colors duration-300 outline-none flex items-center justify-center font-bold tracking-widest uppercase cursor-pointer;
+  }
+}
