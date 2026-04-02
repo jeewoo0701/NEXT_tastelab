@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Play, Pause, SkipForward, Mic, CheckCircle2, UserCircle2 } from 'lucide-react'
+import { Play, Pause, SkipForward, Mic, CheckCircle2, UserCircle2, BarChart3 } from 'lucide-react'
 import YouTube from 'react-youtube'
 import { supabase } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -33,6 +33,20 @@ export default function BlindTestMode({ roomId, nickname, isHost }: { roomId: st
   const hasSubmitted = songs.some(s => s.submitter_id === me?.id)
   const submittedCount = songs.length // 이 방식에선 1인당 1곡 제출
   const votedCount = participants.filter(p => Boolean(p.vote_for)).length
+
+  // 각 참가자별 득표수 계산
+  const getVoteTally = () => {
+    const tally: Record<string, number> = {}
+    participants.forEach(p => { tally[p.id] = 0 })
+    participants.forEach(p => {
+      if (p.vote_for && tally[p.vote_for] !== undefined) {
+        tally[p.vote_for]++
+      }
+    })
+    return tally
+  }
+  const voteTally = getVoteTally()
+  const maxVotes = Math.max(...Object.values(voteTally), 1)
 
   useEffect(() => {
     const fetchState = async () => {
@@ -293,10 +307,49 @@ export default function BlindTestMode({ roomId, nickname, isHost }: { roomId: st
               <div className="w-full bg-pure-black/90 flex flex-col items-center justify-center p-8 border border-gray-800 mt-4">
                 <h3 className="text-sm tracking-[0.4em] text-gray-400 mb-4">정답공개</h3>
                 <h2 className="text-xl md:text-3xl tracking-[0.2em] font-bold text-electric-blue mb-8 text-center">{videoTitle}</h2>
-                <div className="text-center mb-12">
+                <div className="text-center mb-8">
                   <p className="text-xs tracking-widest text-gray-500 mb-2">이 곡을 제출한 사람</p>
                   <div className="text-2xl tracking-[0.3em] uppercase p-4 border border-electric-blue text-pure-white inline-block">
                     {participants.find(p => p.id === submitterId)?.nickname || '알 수 없음'}
+                  </div>
+                </div>
+
+                {/* 최종 투표 결과 */}
+                <div className="w-full max-w-lg mb-8 border border-gray-800 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-xs tracking-[0.3em] text-gray-400 flex items-center">
+                      <BarChart3 size={14} className="mr-2" />
+                      FINAL VOTE RESULT
+                    </h4>
+                    <span className="text-xs text-gray-600 tracking-widest">{votedCount} VOTES</span>
+                  </div>
+                  <div className="space-y-3">
+                    {participants
+                      .slice()
+                      .sort((a, b) => (voteTally[b.id] || 0) - (voteTally[a.id] || 0))
+                      .map((p, idx) => {
+                        const votes = voteTally[p.id] || 0
+                        const pct = maxVotes > 0 ? (votes / maxVotes) * 100 : 0
+                        const isWinner = idx === 0 && votes > 0
+                        const isSubmitter = p.id === submitterId
+                        return (
+                          <div key={p.id} className="flex items-center space-x-3">
+                            <span className={`text-xs tracking-widest uppercase w-24 truncate text-right ${isWinner ? 'text-electric-blue font-bold' : 'text-gray-400'}`}>
+                              {p.nickname}
+                              {isSubmitter && <span className="text-[8px] text-electric-blue ml-1">♪</span>}
+                            </span>
+                            <div className="flex-1 h-6 bg-gray-900 border border-gray-800 relative overflow-hidden">
+                              <div
+                                className={`h-full transition-all duration-700 ease-out ${isWinner ? 'bg-electric-blue' : 'bg-gray-700'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className={`text-sm font-bold w-8 text-right ${isWinner ? 'text-electric-blue' : 'text-gray-500'}`}>
+                              {votes}
+                            </span>
+                          </div>
+                        )
+                      })}
                   </div>
                 </div>
 
@@ -349,18 +402,63 @@ export default function BlindTestMode({ roomId, nickname, isHost }: { roomId: st
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {participants.map((p) => {
               const isSelected = me?.vote_for === p.id
+              const voteCount = voteTally[p.id] || 0
               return (
                 <button
                   key={p.id}
                   onClick={() => handleVote(p.id)}
-                  className={`flex flex-col items-center justify-center py-4 border transition-all duration-300 ${isSelected ? 'border-electric-blue bg-electric-blue/10 text-electric-blue' : 'border-gray-800 bg-pure-black text-gray-400 hover:border-gray-500 hover:text-pure-white'}`}
+                  className={`flex flex-col items-center justify-center py-4 border transition-all duration-300 relative ${isSelected ? 'border-electric-blue bg-electric-blue/10 text-electric-blue' : 'border-gray-800 bg-pure-black text-gray-400 hover:border-gray-500 hover:text-pure-white'}`}
                 >
                   <UserCircle2 size={24} className="mb-2" />
                   <span className="text-xs tracking-widest uppercase">{p.nickname}</span>
+                  {voteCount > 0 && (
+                    <span className="absolute top-2 right-2 bg-electric-blue text-pure-white text-[10px] font-bold w-5 h-5 flex items-center justify-center">
+                      {voteCount}
+                    </span>
+                  )}
                 </button>
               )
             })}
           </div>
+
+          {/* 실시간 투표 현황 바 차트 */}
+          {votedCount > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-800">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-[10px] tracking-[0.3em] text-gray-500 flex items-center">
+                  <BarChart3 size={12} className="mr-2" />
+                  LIVE VOTE
+                </h4>
+                <span className="text-[10px] text-electric-blue tracking-widest animate-pulse">● REALTIME</span>
+              </div>
+              <div className="space-y-2">
+                {participants
+                  .slice()
+                  .sort((a, b) => (voteTally[b.id] || 0) - (voteTally[a.id] || 0))
+                  .map(p => {
+                    const votes = voteTally[p.id] || 0
+                    const pct = maxVotes > 0 ? (votes / maxVotes) * 100 : 0
+                    const isLeading = votes === maxVotes && votes > 0
+                    return (
+                      <div key={p.id} className="flex items-center space-x-2">
+                        <span className={`text-[10px] tracking-widest uppercase w-20 truncate text-right ${isLeading ? 'text-electric-blue' : 'text-gray-500'}`}>
+                          {p.nickname}
+                        </span>
+                        <div className="flex-1 h-4 bg-gray-900 border border-gray-800 relative overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-500 ease-out ${isLeading ? 'bg-electric-blue' : 'bg-gray-700'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-bold w-6 text-right ${isLeading ? 'text-electric-blue' : 'text-gray-600'}`}>
+                          {votes}
+                        </span>
+                      </div>
+                    )
+                  })}
+              </div>
+            </div>
+          )}
         </footer>
       )}
     </div>
